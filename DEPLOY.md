@@ -13,8 +13,8 @@ The app is a static site — `npm run build` produces `dist/`, deployable anywhe
 
 - **Netlify Drop** (no account needed): build, then drag the `dist` folder onto
   https://app.netlify.com/drop → instant HTTPS URL.
-- **Vercel:** `npm i -g vercel && vercel` in the project (uses HashRouter, so no
-  routing config needed).
+- **Vercel:** import the GitHub repo (or `npm i -g vercel && vercel`). Clean URLs
+  work via `vercel.json` (SPA rewrite) + BrowserRouter.
 - **Cloudflare Pages / GitHub Pages:** point at the repo, build command
   `npm run build`, output dir `dist`.
 

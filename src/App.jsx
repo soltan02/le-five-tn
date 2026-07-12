@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { HashRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
 import { ToastProvider, useToast } from "./components/ui.jsx";
 import { useSession, useStore } from "./store/hooks.js";
@@ -56,7 +56,7 @@ function AcceptedNotifier() {
 
 export default function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <ToastProvider>
         <ReminderScheduler />
         <AcceptedNotifier />
@@ -72,6 +72,6 @@ export default function App() {
           </Routes>
         </Layout>
       </ToastProvider>
-    </HashRouter>
+    </BrowserRouter>
   );
 }

@@ -19,8 +19,8 @@ needed on Vercel.)
 
 ## Deploy to Vercel
 
-The project is Vercel-ready — no config needed (Vite is auto-detected, and it
-uses HashRouter so there are no server rewrites to set up).
+The project is Vercel-ready. Vite is auto-detected, and `vercel.json` provides
+the SPA rewrite so clean URLs (BrowserRouter, no `#`) work on refresh.
 
 1. Go to **vercel.com** → sign in with GitHub.
 2. **Add New… → Project** → import **`soltan02/9assa.tn`**.
