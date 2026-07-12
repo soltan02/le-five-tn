@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import "./ui.css";
 
 export function Button({ variant = "primary", size, block, className = "", ...props }) {
@@ -48,15 +49,24 @@ export function Modal({ open, onClose, children }) {
     if (!open) return;
     const onKey = (e) => e.key === "Escape" && onClose?.();
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Lock background scroll while the modal is open.
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [open, onClose]);
   if (!open) return null;
-  return (
+  // Portal to <body> so the scrim escapes the app's stacking context (.content
+  // has z-index) and renders ABOVE the top + bottom navbars.
+  return createPortal(
     <div className="modal-scrim" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

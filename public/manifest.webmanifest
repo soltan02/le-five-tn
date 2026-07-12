@@ -1,0 +1,14 @@
+{
+  "name": "Le Five — Réservation terrain",
+  "short_name": "Le Five",
+  "description": "Réserve ton terrain de foot (5v5 / 7v7 / 11v11).",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B0F0E",
+  "theme_color": "#0B0F0E",
+  "icons": [
+    { "src": "./icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any maskable" }
+  ]
+}

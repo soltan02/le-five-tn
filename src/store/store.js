@@ -1,5 +1,5 @@
 import { FACILITY } from "../config/facility.js";
-import { upcomingDays, slotsForDay, isPast } from "../lib/dates.js";
+import { upcomingDays, slotsForDay, isPast, slotStartMs, longDate } from "../lib/dates.js";
 
 // ---------------------------------------------------------------------------
 // Tiny external store (localStorage-backed) with pub/sub, consumed via
@@ -30,6 +30,7 @@ function load() {
         ...saved,
         pitches: saved.pitches ?? base.pitches,
         notifications: saved.notifications ?? base.notifications,
+        sms: saved.sms ?? base.sms,
       };
     }
   } catch { /* fall through to seed */ }
@@ -91,10 +92,27 @@ function seed() {
         slotEnd: slot.end,
         phone: player.phone,
         name: player.name,
-        status: d === 0 || i === 0 ? "confirmed" : "pending",
+        status: (d + i) % 3 === 0 ? "pending" : "confirmed",
         createdAt: Date.now() - d * 86400000,
       });
     }
+  }
+
+  // A live example of COMPETING requests on one free slot (Terrain A, 12:00, in
+  // 2 days): three players want it — the owner picks one from the stack.
+  const contestDay = days[2].key;
+  for (let i = 0; i < 3; i++) {
+    bookings.push({
+      id: uid(),
+      dayKey: contestDay,
+      pitchId: "a",
+      slotStart: "12:00",
+      slotEnd: "13:30",
+      phone: players[i].phone,
+      name: players[i].name,
+      status: "pending",
+      createdAt: Date.now() - i * 3600000,
+    });
   }
 
   const users = {};
@@ -108,6 +126,7 @@ function seed() {
     // at runtime. Seeded from the facility defaults; each gains a `status`.
     pitches: FACILITY.pitches.map((p) => ({ ...p, status: "active" })),
     notifications: [],
+    sms: [], // outbox (simulated delivery — see the SMS section below)
     bookings,
     suggestions: [
       { id: uid(), phone: "+216 22 111 222", name: "Aymen", text: "Des filets neufs sur le Terrain B svp.", createdAt: Date.now() - 2 * 86400000, status: "open" },
@@ -150,6 +169,27 @@ export function verifyOtp(phone, code, name) {
   return { ok: true, user };
 }
 
+/**
+ * Instant sign-up / sign-in — no code to confirm (owner approval + the booking
+ * limit are the anti-fake guard). The phone becomes the account id; the owner
+ * phone gets the owner role.
+ */
+export function signIn(phone, name) {
+  const clean = (phone || "").trim();
+  if (clean.replace(/\D/g, "").length < 8) return { ok: false, error: "Numéro invalide." };
+  const users = { ...state.users };
+  let user = users[clean];
+  if (!user) {
+    const role = clean === FACILITY.ownerPhone ? "owner" : "player";
+    user = { phone: clean, name: name?.trim() || "Joueur", role, createdAt: Date.now() };
+  } else if (name?.trim()) {
+    user = { ...user, name: name.trim() };
+  }
+  users[clean] = user;
+  set({ ...state, users, session: { phone: user.phone, name: user.name, role: user.role } });
+  return { ok: true, user };
+}
+
 export function logout() {
   set({ ...state, session: null });
 }
@@ -160,11 +200,16 @@ export function logout() {
 function isActive(b) {
   return b.status === "pending" || b.status === "confirmed";
 }
+const sameSlot = (b, dayKey, pitchId, slotStart) =>
+  b.dayKey === dayKey && b.pitchId === pitchId && b.slotStart === slotStart;
 
-export function bookingAt(dayKey, pitchId, slotStart) {
-  return state.bookings.find(
-    (b) => b.dayKey === dayKey && b.pitchId === pitchId && b.slotStart === slotStart && isActive(b),
-  );
+/** The single confirmed booking on a slot (a slot locks only once confirmed). */
+export function confirmedAt(dayKey, pitchId, slotStart) {
+  return state.bookings.find((b) => sameSlot(b, dayKey, pitchId, slotStart) && b.status === "confirmed");
+}
+/** All pending requests competing for a slot — the owner picks one. */
+export function pendingAt(dayKey, pitchId, slotStart) {
+  return state.bookings.filter((b) => sameSlot(b, dayKey, pitchId, slotStart) && b.status === "pending");
 }
 
 export function activeCount(phone) {
@@ -184,7 +229,12 @@ export function createBooking({ dayKey, pitchId, slotStart, slotEnd }) {
   if (!pitch || pitch.status === "removed") return { ok: false, error: "Terrain indisponible." };
   if (pitch.status === "maintenance") return { ok: false, error: "Terrain en maintenance." };
   if (isPast(dayKey, slotStart)) return { ok: false, error: "Ce créneau est déjà passé." };
-  if (bookingAt(dayKey, pitchId, slotStart)) return { ok: false, error: "Ce créneau vient d'être pris." };
+  if (confirmedAt(dayKey, pitchId, slotStart)) return { ok: false, error: "Ce créneau est déjà réservé." };
+  // Multiple people MAY request the same free slot — they stack and the owner
+  // chooses. Only block a duplicate request from the same person.
+  if (pendingAt(dayKey, pitchId, slotStart).some((b) => b.phone === s.phone)) {
+    return { ok: false, error: "Tu as déjà demandé ce créneau." };
+  }
   if (activeCount(s.phone) >= FACILITY.maxActiveBookingsPerUser) {
     return { ok: false, error: `Limite de ${FACILITY.maxActiveBookingsPerUser} réservations actives atteinte.` };
   }
@@ -196,8 +246,11 @@ export function createBooking({ dayKey, pitchId, slotStart, slotEnd }) {
     createdAt: Date.now(),
   };
   set({ ...state, bookings: [...state.bookings, booking] });
-  // Notify the owner that a new request needs confirmation.
-  notify(`Nouvelle demande — ${s.name} · ${pitch.name} · ${slotStart}`, { type: "booking", bookingId: booking.id });
+  const competing = pendingAt(dayKey, pitchId, slotStart).length; // includes the one just added
+  notify(
+    `Nouvelle demande — ${s.name} · ${pitch.name} · ${slotStart}` + (competing > 1 ? ` (${competing} demandes sur ce créneau)` : ""),
+    { type: "booking", bookingId: booking.id },
+  );
   return { ok: true, booking };
 }
 
@@ -211,7 +264,7 @@ export function ownerCreateBooking({ dayKey, pitchId, slotStart, slotEnd, name, 
   if (!pitch || pitch.status === "removed") return { ok: false, error: "Terrain indisponible." };
   if (pitch.status === "maintenance") return { ok: false, error: "Terrain en maintenance." };
   if (isPast(dayKey, slotStart)) return { ok: false, error: "Ce créneau est déjà passé." };
-  if (bookingAt(dayKey, pitchId, slotStart)) return { ok: false, error: "Ce créneau est déjà pris." };
+  if (confirmedAt(dayKey, pitchId, slotStart)) return { ok: false, error: "Ce créneau est déjà réservé." };
   const booking = {
     id: uid(),
     dayKey, pitchId, slotStart, slotEnd,
@@ -219,7 +272,17 @@ export function ownerCreateBooking({ dayKey, pitchId, slotStart, slotEnd, name, 
     status: "confirmed", byOwner: true,
     createdAt: Date.now(),
   };
-  set({ ...state, bookings: [...state.bookings, booking] });
+  // Owner grants the slot to this walk-in → any competing requests are declined.
+  const declined = new Set(pendingAt(dayKey, pitchId, slotStart).map((b) => b.id));
+  set({
+    ...state,
+    bookings: [
+      ...state.bookings.map((b) => (declined.has(b.id) ? { ...b, status: "declined" } : b)),
+      booking,
+    ],
+  });
+  // Confirmation SMS if the owner entered the client's number.
+  if (validPhone(booking.phone)) deliver(booking.phone, confirmationText(booking), "confirmation");
   return { ok: true, booking };
 }
 
@@ -227,8 +290,54 @@ function setStatus(id, status) {
   set({ ...state, bookings: state.bookings.map((b) => (b.id === id ? { ...b, status } : b)) });
 }
 export const cancelBooking = (id) => setStatus(id, "cancelled");
-export const confirmBooking = (id) => setStatus(id, "confirmed");
 export const declineBooking = (id) => setStatus(id, "declined");
+
+// ---------------------------------------------------------------------------
+// Past-match outcome + actual payment (owner-recorded, after the fact).
+// A "confirmed" booking just means the slot was granted — it doesn't tell you
+// whether the match actually happened (no-shows, last-minute cancellations)
+// or how much really changed hands (the pitch's listed price is a default,
+// not always what's collected — discounts, split payments, etc.). Both are
+// free-standing fields the owner sets once the slot is in the past; neither
+// touches `status`, which stays the booking-lifecycle field.
+// ---------------------------------------------------------------------------
+export function setBookingOutcome(id, outcome) {
+  set({ ...state, bookings: state.bookings.map((b) => (b.id === id ? { ...b, outcome } : b)) });
+}
+export function setBookingPayment(id, amountPaid) {
+  const n = Number(amountPaid);
+  set({
+    ...state,
+    bookings: state.bookings.map((b) => (b.id === id ? { ...b, amountPaid: Number.isFinite(n) ? n : null } : b)),
+  });
+}
+
+/** Confirmed bookings whose slot has already started — the owner reconciles
+ *  these after the fact (outcome + actual amount paid). Most recent first. */
+export function pastConfirmedBookings() {
+  return state.bookings
+    .filter((b) => b.status === "confirmed" && isPast(b.dayKey, b.slotStart))
+    .sort((a, b) => (b.dayKey + b.slotStart).localeCompare(a.dayKey + a.slotStart));
+}
+
+// Confirm one request and auto-decline every OTHER pending request competing
+// for the same date/stadium/slot — the manager picked a winner.
+export function confirmBooking(id) {
+  const target = state.bookings.find((b) => b.id === id);
+  if (!target) return;
+  set({
+    ...state,
+    bookings: state.bookings.map((b) => {
+      if (b.id === id) return { ...b, status: "confirmed" };
+      if (b.status === "pending" && sameSlot(b, target.dayKey, target.pitchId, target.slotStart)) {
+        return { ...b, status: "declined" };
+      }
+      return b;
+    }),
+  });
+  // SMS the booker that their reservation is confirmed.
+  if (validPhone(target.phone)) deliver(target.phone, confirmationText(target), "confirmation");
+}
 
 // ---------------------------------------------------------------------------
 // Suggestions
@@ -298,9 +407,53 @@ export function unreadCount() {
 export function requestNotifPermission() {
   try {
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
-      Notification.requestPermission();
+      return Notification.requestPermission();
     }
   } catch { /* unsupported */ }
+  return Promise.resolve(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
+}
+
+// ---------------------------------------------------------------------------
+// SMS (SIMULATION). Each message is built with its real text + timing rules and
+// dropped into an outbox; nothing actually leaves the browser. To send for real,
+// replace deliver() with a gateway call on the BACKEND (Twilio / a Tunisian SMS
+// API). The 1h reminder MUST be scheduled server-side so it fires even when no
+// one has the app open — a browser can't do that reliably.
+// ---------------------------------------------------------------------------
+const validPhone = (p) => !!p && p.replace(/\D/g, "").length >= 8;
+
+function deliver(to, body, kind) {
+  const sms = { id: uid(), to, body, kind, at: Date.now() };
+  set({ ...state, sms: [sms, ...state.sms].slice(0, 100) });
+}
+export function smsOutbox() {
+  return state.sms;
+}
+
+function confirmationText(b) {
+  const p = pitchById(b.pitchId);
+  return `${FACILITY.name}: Bonjour ${b.name}, votre reservation ${p?.name || ""} le ${longDate(b.dayKey)} a ${b.slotStart} est CONFIRMEE.`;
+}
+function reminderText(b) {
+  const p = pitchById(b.pitchId);
+  return `${FACILITY.name}: Rappel - votre match ${p?.name || ""} commence a ${b.slotStart} (dans 1h). Bon match!`;
+}
+
+/** Confirmed bookings starting within the next hour that haven't been reminded. */
+export function remindersDue(nowMs = Date.now()) {
+  return state.bookings.filter((b) => {
+    if (b.status !== "confirmed" || b.reminded || !validPhone(b.phone)) return false;
+    const diff = slotStartMs(b.dayKey, b.slotStart) - nowMs;
+    return diff > 0 && diff <= 60 * 60000;
+  });
+}
+export function sendDueReminders(nowMs = Date.now()) {
+  const due = remindersDue(nowMs);
+  if (!due.length) return 0;
+  const ids = new Set(due.map((b) => b.id));
+  set({ ...state, bookings: state.bookings.map((b) => (ids.has(b.id) ? { ...b, reminded: true } : b)) });
+  due.forEach((b) => deliver(b.phone, reminderText(b), "reminder"));
+  return due.length;
 }
 
 // ---------------------------------------------------------------------------
@@ -311,8 +464,11 @@ export function ownerStats() {
   const bookablePitches = state.pitches.filter((p) => p.status === "active").length;
   const slotsPerDay = slotsForDay().length * Math.max(1, bookablePitches);
   const weekActive = state.bookings.filter((b) => days.includes(b.dayKey) && isActive(b));
+  // Occupancy + revenue reflect CONFIRMED bookings only (many pending requests
+  // may stack on one slot; they mustn't inflate real usage).
+  const weekConfirmed = state.bookings.filter((b) => days.includes(b.dayKey) && b.status === "confirmed");
   const capacity = slotsPerDay * days.length;
-  const occupancy = capacity ? Math.round((weekActive.length / capacity) * 100) : 0;
+  const occupancy = capacity ? Math.round((weekConfirmed.length / capacity) * 100) : 0;
 
   // Bookings per weekday (next 7 days) for the bar chart.
   const perDay = upcomingDays(7).map((d) => ({
@@ -327,12 +483,16 @@ export function ownerStats() {
     perHour[b.slotStart] = (perHour[b.slotStart] || 0) + 1;
   });
 
-  const revenue = weekActive.reduce((sum, b) => {
+  const revenue = weekConfirmed.reduce((sum, b) => {
     const pitch = pitchById(b.pitchId);
     return sum + (pitch ? pitch.price : 0);
   }, 0);
 
   const pending = state.bookings.filter((b) => b.status === "pending" && !isPast(b.dayKey, b.slotStart));
 
-  return { occupancy, perDay, perHour, revenue, pendingCount: pending.length, pending, weekCount: weekActive.length };
+  return {
+    occupancy, perDay, perHour, revenue,
+    pendingCount: pending.length, pending,
+    weekCount: weekConfirmed.length,
+  };
 }

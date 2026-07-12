@@ -15,11 +15,16 @@ one and "owner" (gérant) in the other at the same time.
 2. Pick a stadium and a **Libre** slot → a confirm sheet opens with the photo,
    date, time, price → **Réserver**.
 3. First time, it sends you to **Connexion**: enter any number (e.g.
-   `+216 20 123 456`) + a prénom → **Envoyer le code** → the 6-digit code shows
-   on screen (demo) → type it → **Vérifier**.
-4. Back on the schedule, tap your slot again → **Réserver**. Toast: "en attente
-   de confirmation".
-5. Tab **Mes résas** → your booking shows **En attente**, with **Annuler**.
+   `+216 20 123 456`) + a prénom → **Continuer**. You're in **instantly — no
+   code** (the owner confirms each booking, which is the anti-fake guard).
+   On **Mes réservations** you can tap **Activer** to get a real notification
+   the moment the owner confirms (works while the app is open).
+4. Back on the schedule, tap your slot → **Envoyer la demande**. A screen
+   appears: **"Demande envoyée ! … reviens vérifier dans ~5 minutes"** with a
+   button to Mes réservations. (No SMS — this in-app message is the free path.)
+5. Tab **Mes résas** → your booking shows **En attente** + the hint *"reviens
+   vérifier dans ~5 min"*, with **Annuler**. Once the owner confirms, it flips to
+   **Confirmé** here.
 
 **Privacy check:** that booked slot now shows **Réservé** with *no name* — a
 second player must not see who booked it.
@@ -49,13 +54,36 @@ with **`+216 20 000 000`** → you land on **Gérer** (the owner tab appears).
 4. **Réserver pour un client** (top right) / **Planning** tab → click any
    **free** slot → enter the **caller's name** → **Réserver**. Created
    **Confirmé** right away (no player action needed).
-5. **Change / free a booking:** on **Planning**, click a **taken** slot (owners
-   see the client's name on it) → **Gérer le créneau** → **Confirmer** a pending
-   request, or **Libérer le créneau** to free it (e.g. the client cancelled by
-   phone). A freed slot immediately becomes bookable again.
+5. **Change / free a booking:** on **Planning**, click a **confirmed** slot
+   (owners see the client's name on it) → **Gérer le créneau** → **Libérer le
+   créneau** to free it (e.g. the client cancelled by phone). A freed slot
+   becomes bookable again.
+6. **Competing requests (pick one):** if several players requested the *same*
+   slot, the owner sees **"N demandes"** on it. There's a seeded example:
+   **Terrain A, 12:00, in 2 days (day "+2")** has **3 demandes**. Click it →
+   **Choisir une demande** lists all three → **Confirmer** one (the others are
+   auto-refused) or **Refuser** individually.
+   - To reproduce live: as a player request a free slot; as a *second* player
+     (other window) request the *same* slot — both succeed. Each player only
+     ever sees it as **Libre / En attente** (never who else asked). The owner
+     sees the stack and chooses.
 
 Note: the owner's tabs are **Planning** and **Gérer** only — no personal
 "Mes résas" and no "Idées" (owners review suggestions, they don't submit them).
+
+## B2 — SMS (simulation)
+
+No real SMS is sent (that needs a paid gateway + backend). Instead each message
+is generated and shown in the owner's **SMS envoyés** card on **Gérer**.
+
+1. As owner, **Confirmer** any booking (or a request from the chooser). A
+   booking made by a logged-in player already has their number; for a walk-in,
+   fill **Téléphone du client** in the booking sheet.
+2. Open **Gérer** → **SMS envoyés** → you'll see a **Confirmation** SMS with the
+   real text ("… votre reservation … est CONFIRMEE").
+3. **1h reminder:** a booking whose start is within the next hour gets a
+   **Rappel 1h** SMS (the app checks every 30 s while open). To see it live,
+   make a walk-in booking with a phone on a slot that starts in <1 h.
 
 ## C — Stats
 

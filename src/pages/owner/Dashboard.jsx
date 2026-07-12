@@ -7,7 +7,8 @@ import { useSession, useStore } from "../../store/hooks.js";
 import {
   ownerStats, confirmBooking, declineBooking, resolveSuggestion,
   pitchById, getPitches, addPitch, removePitch, setPitchStatus,
-  requestNotifPermission,
+  requestNotifPermission, smsOutbox,
+  pastConfirmedBookings, setBookingOutcome, setBookingPayment,
 } from "../../store/store.js";
 import { Button, Card, EmptyState, StatusBadge, useToast, Modal, Field } from "../../components/ui.jsx";
 import PitchPhoto from "../../components/PitchPhoto.jsx";
@@ -62,6 +63,39 @@ export default function OwnerDashboard() {
             ))}
           </div>
         )}
+      </Card>
+
+      {/* SMS outbox (simulated) */}
+      <Card style={{ marginBottom: 16 }}>
+        <div className="spread">
+          <strong style={{ fontSize: 15 }}>💬 SMS envoyés</strong>
+          <StatusBadge status="pending" label="Simulation" />
+        </div>
+        {smsOutbox().length === 0 ? (
+          <p className="muted" style={{ fontSize: 13, marginBottom: 0, marginTop: 8 }}>
+            Aucun SMS pour l'instant. Confirme une réservation → le client reçoit un SMS de confirmation,
+            puis un rappel 1h avant le match.
+          </p>
+        ) : (
+          <div style={{ marginTop: 8 }}>
+            {smsOutbox().slice(0, 6).map((m) => (
+              <div key={m.id} className="pending-item" style={{ alignItems: "flex-start" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div className="row" style={{ gap: 8 }}>
+                    <StatusBadge status={m.kind === "confirmation" ? "confirmed" : "free"}
+                      label={m.kind === "confirmation" ? "Confirmation" : "Rappel 1h"} />
+                    <span className="muted mono" style={{ fontSize: 12 }}>{m.to}</span>
+                  </div>
+                  <div style={{ fontSize: 13, marginTop: 4 }}>{m.body}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="muted" style={{ fontSize: 11.5, marginBottom: 0, marginTop: 10 }}>
+          Simulation — aucun SMS n'est réellement envoyé. L'envoi réel nécessite une passerelle SMS
+          (payante) + un serveur pour les rappels programmés.
+        </p>
       </Card>
 
       {/* Your stadiums — management */}
@@ -162,6 +196,14 @@ export default function OwnerDashboard() {
         )}
       </Card>
 
+      {/* Past matches — outcome (joué/annulé) + actual amount paid, since the
+          pitch's listed price is only a default and doesn't always match what
+          was actually collected. */}
+      <Card style={{ marginBottom: 16 }}>
+        <strong style={{ fontSize: 15 }}>Matchs passés</strong>
+        <PastMatches toast={toast} />
+      </Card>
+
       {/* Suggestions inbox */}
       <Card>
         <div className="spread">
@@ -186,6 +228,74 @@ export default function OwnerDashboard() {
       </Card>
 
       <AddPitchModal open={addOpen} onClose={() => setAddOpen(false)} onAdded={() => toast("Terrain ajouté.")} />
+    </div>
+  );
+}
+
+function PastMatches({ toast }) {
+  const matches = pastConfirmedBookings();
+  if (matches.length === 0) {
+    return <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>Aucun match passé pour l'instant.</p>;
+  }
+  return (
+    <div style={{ marginTop: 8 }}>
+      {matches.map((b) => (
+        <PastMatchRow key={b.id} b={b} toast={toast} />
+      ))}
+    </div>
+  );
+}
+
+function PastMatchRow({ b, toast }) {
+  const pitch = pitchById(b.pitchId);
+  // Defaults to the pitch's listed price until the owner overrides it —
+  // exceptions (discounts, split payments, no-shows) are common enough that
+  // this must stay editable per booking, not just read from the pitch.
+  const [amount, setAmount] = useState(b.amountPaid ?? pitch?.price ?? 0);
+  const dirty = Number(amount) !== (b.amountPaid ?? pitch?.price ?? 0);
+
+  function saveAmount() {
+    setBookingPayment(b.id, amount);
+    toast("Montant enregistré.");
+  }
+
+  return (
+    <div className="pending-item" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 14 }}>{b.name} · <span className="mono">{b.phone}</span></div>
+        <div className="muted" style={{ fontSize: 12.5 }}>
+          {longDate(b.dayKey)} · {b.slotStart} · {pitch?.name}
+        </div>
+      </div>
+      <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <div className="row" style={{ gap: 6 }}>
+          <Button
+            size="sm"
+            variant={b.outcome === "played" ? "primary" : "ghost"}
+            onClick={() => { setBookingOutcome(b.id, "played"); toast("Marqué comme joué."); }}
+          >
+            Joué
+          </Button>
+          <Button
+            size="sm"
+            variant={b.outcome === "cancelled" ? "danger" : "ghost"}
+            onClick={() => { setBookingOutcome(b.id, "cancelled"); toast("Marqué comme annulé."); }}
+          >
+            Annulé
+          </Button>
+        </div>
+        <div className="row" style={{ gap: 6, alignItems: "center" }}>
+          <input
+            className="input mono"
+            inputMode="numeric"
+            style={{ width: 84 }}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+          <span className="muted" style={{ fontSize: 12.5 }}>{FACILITY.currency}</span>
+          {dirty && <Button size="sm" onClick={saveAmount}>Enregistrer</Button>}
+        </div>
+      </div>
     </div>
   );
 }

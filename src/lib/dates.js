@@ -61,10 +61,15 @@ function toHM(min) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** Has this date+slot already started (relative to now)? */
-export function isPast(dayKey, slotStart) {
+/** Absolute epoch-ms of a slot's start. */
+export function slotStartMs(dayKey, slotStart) {
   const d = parseKey(dayKey);
   const [h, m] = slotStart.split(":").map(Number);
   d.setHours(h, m, 0, 0);
-  return d.getTime() <= Date.now();
+  return d.getTime();
+}
+
+/** Has this date+slot already started (relative to now)? */
+export function isPast(dayKey, slotStart) {
+  return slotStartMs(dayKey, slotStart) <= Date.now();
 }
