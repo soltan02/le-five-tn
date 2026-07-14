@@ -23,10 +23,10 @@ The project is Vercel-ready. Vite is auto-detected, and `vercel.json` provides
 the SPA rewrite so clean URLs (BrowserRouter, no `#`) work on refresh.
 
 1. Go to **vercel.com** → sign in with GitHub.
-2. **Add New… → Project** → import **`soltan02/9assa.tn`**.
+2. **Add New… → Project** → import **`soltan02/le-five-tn`**.
 3. Vercel auto-fills: Framework **Vite**, Build `npm run build`, Output `dist`.
    Leave everything as-is → **Deploy**.
-4. You get a URL like `9assa-tn.vercel.app`. **Every `git push` to `main`
+4. You get a URL like `le-five-tn.vercel.app`. **Every `git push` to `main`
    auto-deploys.**
 
 No environment variables are needed (there's no backend yet).

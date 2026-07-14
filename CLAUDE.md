@@ -1,7 +1,7 @@
 # Le Five — context & continuation (read me first)
 
 This file is the hand-off so any Claude session (on any machine) can pick up
-where the last one left off. Repo: **soltan02/9assa.tn** (branch `main`).
+where the last one left off. Repo: **soltan02/le-five-tn** (branch `main`).
 
 ## What this is
 A booking website for **one** football facility in Tunisia (one owner, several
