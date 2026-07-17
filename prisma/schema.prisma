@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  player
+  owner
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  cancelled
+  declined
+}
+
+enum Outcome {
+  played
+  cancelled
+}
+
+enum PitchStatus {
+  active
+  maintenance
+  removed
+}
+
+enum SuggestionStatus {
+  open
+  resolved
+}
+
+enum SmsKind {
+  confirmation
+  reminder
+}
+
+enum ExpenseCategory {
+  rent
+  electricity
+  water
+  staff
+  maintenance
+  equipment
+  other
+}
+
+// Dates/times are kept as plain "YYYY-MM-DD" / "HH:MM" strings rather than
+// native Postgres date/time columns — the app only ever treats them as
+// opaque keys (all real date logic lives client-side in src/lib/dates.js),
+// so this keeps the wire format identical to what the frontend already
+// expects with zero serialization/timezone conversion anywhere.
+
+model User {
+  id              String   @id @default(uuid())
+  phone           String
+  phoneNormalized String   @unique
+  name            String
+  role            Role     @default(player)
+  createdAt       DateTime @default(now())
+
+  sessions Session[]
+  expenses Expense[]
+}
+
+model Session {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  @@index([userId])
+}
+
+model Pitch {
+  id        String      @id @default(uuid())
+  name      String
+  players   String
+  perSide   Int
+  price     Decimal     @db.Decimal(10, 2)
+  surface   String
+  covered   Boolean     @default(false)
+  image     String?
+  tint      String
+  status    PitchStatus @default(active)
+  createdAt DateTime    @default(now())
+
+  bookings Booking[]
+}
+
+model Booking {
+  id         String        @id @default(uuid())
+  dayKey     String
+  pitchId    String
+  pitch      Pitch         @relation(fields: [pitchId], references: [id])
+  slotStart  String
+  slotEnd    String
+  phone      String
+  name       String
+  status     BookingStatus @default(pending)
+  byOwner    Boolean       @default(false)
+  reminded   Boolean       @default(false)
+  outcome    Outcome?
+  amountPaid Decimal?      @db.Decimal(10, 2)
+  createdAt  DateTime      @default(now())
+
+  notifications Notification[]
+
+  @@index([dayKey, pitchId, slotStart])
+  @@index([phone])
+  @@index([outcome])
+}
+
+model Suggestion {
+  id        String            @id @default(uuid())
+  phone     String
+  name      String
+  text      String
+  status    SuggestionStatus  @default(open)
+  createdAt DateTime          @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  text      String
+  type      String?
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model SmsOutbox {
+  id        String   @id @default(uuid())
+  toPhone   String
+  body      String
+  kind      SmsKind
+  createdAt DateTime @default(now())
+}
+
+model Expense {
+  id          String          @id @default(uuid())
+  category    ExpenseCategory
+  amount      Decimal         @db.Decimal(10, 2)
+  description String?
+  expenseDate String // "YYYY-MM-DD", same rationale as Booking.dayKey
+  createdById String?
+  createdBy   User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+
+  @@index([expenseDate])
+}

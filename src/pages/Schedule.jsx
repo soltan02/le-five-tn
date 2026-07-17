@@ -49,11 +49,13 @@ export default function Schedule() {
     setConfirm(slot);
   }
 
-  function doBook() {
+  async function doBook() {
     const slot = confirm;
     setConfirm(null);
     const args = { dayKey, pitchId: pitch.id, slotStart: slot.start, slotEnd: slot.end };
-    const res = isOwner ? ownerCreateBooking({ ...args, name: clientName, phone: clientPhone }) : createBooking(args);
+    const res = isOwner
+      ? await ownerCreateBooking({ ...args, name: clientName, phone: clientPhone })
+      : await createBooking(args);
     if (res.ok) {
       if (isOwner) toast("Réservation confirmée pour le client.");
       else setRequested(slot); // show the "wait for confirmation" screen

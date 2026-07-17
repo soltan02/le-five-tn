@@ -9,9 +9,17 @@ import {
   pitchById, getPitches, addPitch, removePitch, setPitchStatus,
   requestNotifPermission, smsOutbox,
   pastConfirmedBookings, setBookingOutcome, setBookingPayment,
+  financeSummary, setFinancePeriod, addExpense, deleteExpense, unpaidPlayedBookings,
 } from "../../store/store.js";
 import { Button, Card, EmptyState, StatusBadge, useToast, Modal, Field } from "../../components/ui.jsx";
 import PitchPhoto from "../../components/PitchPhoto.jsx";
+
+const PERIODS = [
+  { value: "week7", label: "7 derniers jours" },
+  { value: "month30", label: "30 derniers jours" },
+  { value: "thisMonth", label: "Ce mois-ci" },
+  { value: "lastMonth", label: "Mois dernier" },
+];
 
 export default function OwnerDashboard() {
   const session = useSession();
@@ -19,6 +27,8 @@ export default function OwnerDashboard() {
   const toast = useToast();
   const nav = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [period, setPeriod] = useState("week7");
 
   if (!session || session.role !== "owner") {
     return (
@@ -29,11 +39,18 @@ export default function OwnerDashboard() {
   }
 
   const stats = ownerStats();
+  const finance = financeSummary();
+  const unpaid = unpaidPlayedBookings();
   const maxDay = Math.max(1, ...stats.perDay.map((d) => d.count));
   const maxHour = Math.max(1, ...Object.values(stats.perHour));
   const openSuggestions = state.suggestions.filter((s) => s.status === "open");
   const pitches = getPitches();
   const recentNotifs = state.notifications.slice(0, 6);
+
+  async function onPeriodChange(next) {
+    setPeriod(next);
+    await setFinancePeriod(next);
+  }
 
   return (
     <div>
@@ -129,12 +146,41 @@ export default function OwnerDashboard() {
       </Card>
 
       {/* KPIs */}
-      <div className="stat-grid" style={{ marginBottom: 20 }}>
+      <div className="stat-grid" style={{ marginBottom: 12 }}>
         <div className="stat"><div className="k">Taux d'occupation (7j)</div><div className="v">{stats.occupancy}<small>%</small></div></div>
         <div className="stat"><div className="k">Réservations (7j)</div><div className="v">{stats.weekCount}</div></div>
-        <div className="stat"><div className="k">Revenu estimé (7j)</div><div className="v">{stats.revenue}<small> {FACILITY.currency}</small></div></div>
+        <div className="stat"><div className="k">Revenu prévisionnel (7j)</div><div className="v">{stats.revenueProjected}<small> {FACILITY.currency}</small></div></div>
         <div className="stat"><div className="k">À confirmer</div><div className="v" style={{ color: stats.pendingCount ? "var(--amber)" : "var(--ink)" }}>{stats.pendingCount}</div></div>
       </div>
+
+      {/* Financial period selector + real collected/expenses/net figures */}
+      <Card style={{ marginBottom: 16 }}>
+        <div className="spread" style={{ marginBottom: 12 }}>
+          <strong style={{ fontSize: 15 }}>Finances</strong>
+          <select
+            className="input"
+            style={{ width: "auto", fontSize: 13, padding: "6px 10px" }}
+            value={period}
+            onChange={(e) => onPeriodChange(e.target.value)}
+          >
+            {PERIODS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+        </div>
+        {finance ? (
+          <div className="stat-grid">
+            <div className="stat"><div className="k">Encaissé</div><div className="v">{finance.collected}<small> {FACILITY.currency}</small></div></div>
+            <div className="stat"><div className="k">Dépenses</div><div className="v">{finance.expensesTotal}<small> {FACILITY.currency}</small></div></div>
+            <div className="stat">
+              <div className="k">Bénéfice net</div>
+              <div className="v" style={{ color: finance.netProfit < 0 ? "var(--danger, #dc2626)" : "var(--ink)" }}>
+                {finance.netProfit}<small> {FACILITY.currency}</small>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>Chargement…</p>
+        )}
+      </Card>
 
       {/* Bookings per day */}
       <Card style={{ marginBottom: 16 }}>
@@ -196,6 +242,52 @@ export default function OwnerDashboard() {
         )}
       </Card>
 
+      {/* Unpaid — played matches with no amount recorded yet, a queue to clear */}
+      <Card style={{ marginBottom: 16 }}>
+        <div className="spread">
+          <strong style={{ fontSize: 15 }}>Impayés</strong>
+          {unpaid.length > 0 && <StatusBadge status="pending" label={`${unpaid.length}`} />}
+        </div>
+        {unpaid.length === 0 ? (
+          <p className="muted" style={{ fontSize: 13, marginBottom: 0, marginTop: 8 }}>Rien à réclamer. 👍</p>
+        ) : (
+          <div style={{ marginTop: 8 }}>
+            {unpaid.map((b) => (
+              <UnpaidRow key={b.id} b={b} toast={toast} />
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Expenses */}
+      <Card style={{ marginBottom: 16 }}>
+        <div className="spread" style={{ marginBottom: 12 }}>
+          <strong style={{ fontSize: 15 }}>Dépenses ({PERIODS.find((p) => p.value === period)?.label.toLowerCase()})</strong>
+          <Button size="sm" onClick={() => setExpenseOpen(true)}>+ Ajouter</Button>
+        </div>
+        {!finance || finance.expenses.length === 0 ? (
+          <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>Aucune dépense sur cette période.</p>
+        ) : (
+          <div className="col" style={{ gap: 8 }}>
+            {finance.expenses.map((ex) => (
+              <div key={ex.id} className="pending-item">
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>
+                    {CATEGORY_LABELS[ex.category] || ex.category} · {Number(ex.amount)} {FACILITY.currency}
+                  </div>
+                  <div className="muted" style={{ fontSize: 12.5 }}>
+                    {ex.expenseDate}{ex.description ? ` · ${ex.description}` : ""}
+                  </div>
+                </div>
+                <Button size="sm" variant="danger" onClick={async () => { await deleteExpense(ex.id); toast("Dépense supprimée."); }}>
+                  Supprimer
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       {/* Past matches — outcome (joué/annulé) + actual amount paid, since the
           pitch's listed price is only a default and doesn't always match what
           was actually collected. */}
@@ -228,6 +320,7 @@ export default function OwnerDashboard() {
       </Card>
 
       <AddPitchModal open={addOpen} onClose={() => setAddOpen(false)} onAdded={() => toast("Terrain ajouté.")} />
+      <AddExpenseModal open={expenseOpen} onClose={() => setExpenseOpen(false)} onAdded={() => toast("Dépense ajoutée.")} />
     </div>
   );
 }
@@ -254,8 +347,8 @@ function PastMatchRow({ b, toast }) {
   const [amount, setAmount] = useState(b.amountPaid ?? pitch?.price ?? 0);
   const dirty = Number(amount) !== (b.amountPaid ?? pitch?.price ?? 0);
 
-  function saveAmount() {
-    setBookingPayment(b.id, amount);
+  async function saveAmount() {
+    await setBookingPayment(b.id, amount);
     toast("Montant enregistré.");
   }
 
@@ -300,6 +393,38 @@ function PastMatchRow({ b, toast }) {
   );
 }
 
+function UnpaidRow({ b, toast }) {
+  const pitch = pitchById(b.pitchId);
+  const [amount, setAmount] = useState(pitch?.price ?? 0);
+
+  async function save() {
+    await setBookingPayment(b.id, amount);
+    toast("Montant enregistré.");
+  }
+
+  return (
+    <div className="pending-item" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 14 }}>{b.name} · <span className="mono">{b.phone}</span></div>
+        <div className="muted" style={{ fontSize: 12.5 }}>
+          {longDate(b.dayKey)} · {b.slotStart} · {pitch?.name}
+        </div>
+      </div>
+      <div className="row" style={{ gap: 6, alignItems: "center" }}>
+        <input
+          className="input mono"
+          inputMode="numeric"
+          style={{ width: 84 }}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <span className="muted" style={{ fontSize: 12.5 }}>{FACILITY.currency}</span>
+        <Button size="sm" onClick={save}>Enregistrer</Button>
+      </div>
+    </div>
+  );
+}
+
 const FORMATS = [
   { perSide: 5, players: "5 vs 5" },
   { perSide: 6, players: "6 vs 6" },
@@ -315,10 +440,10 @@ function AddPitchModal({ open, onClose, onAdded }) {
   const [covered, setCovered] = useState(false);
   const [tint, setTint] = useState(TINTS[0]);
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
     if (!name.trim()) return;
-    addPitch({ name, players: fmt.players, perSide: fmt.perSide, price, covered, tint });
+    await addPitch({ name, players: fmt.players, perSide: fmt.perSide, price, covered, tint });
     setName(""); setPrice("100"); setCovered(false);
     onAdded?.();
     onClose();
@@ -360,6 +485,65 @@ function AddPitchModal({ open, onClose, onAdded }) {
         <div className="row" style={{ gap: 10 }}>
           <Button type="button" variant="ghost" block onClick={onClose}>Annuler</Button>
           <Button type="submit" block disabled={!name.trim()}>Ajouter</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+const CATEGORIES = [
+  { value: "rent", label: "Loyer" },
+  { value: "electricity", label: "Électricité" },
+  { value: "water", label: "Eau" },
+  { value: "staff", label: "Personnel" },
+  { value: "maintenance", label: "Entretien" },
+  { value: "equipment", label: "Équipement" },
+  { value: "other", label: "Autre" },
+];
+const CATEGORY_LABELS = Object.fromEntries(CATEGORIES.map((c) => [c.value, c.label]));
+
+function AddExpenseModal({ open, onClose, onAdded }) {
+  const [category, setCategory] = useState(CATEGORIES[0].value);
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  async function submit(e) {
+    e.preventDefault();
+    const n = Number(amount);
+    if (!Number.isFinite(n) || n <= 0) return;
+    await addExpense({ category, amount: n, description, expenseDate });
+    setAmount(""); setDescription("");
+    onAdded?.();
+    onClose();
+  }
+
+  return (
+    <Modal open={open} onClose={onClose}>
+      <h2 style={{ margin: "0 0 16px", fontSize: 20, letterSpacing: "-0.02em" }}>Ajouter une dépense</h2>
+      <form className="col" style={{ gap: 14 }} onSubmit={submit}>
+        <Field label="Catégorie">
+          <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+            {CATEGORIES.map((c) => (
+              <button type="button" key={c.value} onClick={() => setCategory(c.value)}
+                className={`btn ${category === c.value ? "btn-primary" : "btn-ghost"} btn-sm`}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label={`Montant (${FACILITY.currency})`}>
+          <input className="input mono" inputMode="numeric" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
+        </Field>
+        <Field label="Date">
+          <input className="input mono" type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} />
+        </Field>
+        <Field label="Description (optionnel)">
+          <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex : Facture STEG juillet" />
+        </Field>
+        <div className="row" style={{ gap: 10 }}>
+          <Button type="button" variant="ghost" block onClick={onClose}>Annuler</Button>
+          <Button type="submit" block disabled={!amount || Number(amount) <= 0}>Ajouter</Button>
         </div>
       </form>
     </Modal>

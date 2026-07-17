@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
-import { ToastProvider, useToast } from "./components/ui.jsx";
+import { ToastProvider, useToast, EmptyState } from "./components/ui.jsx";
 import { useSession, useStore } from "./store/hooks.js";
 import { sendDueReminders, pitchById } from "./store/store.js";
 import { longDate } from "./lib/dates.js";
@@ -54,6 +54,29 @@ function AcceptedNotifier() {
   return null;
 }
 
+// First paint after a hard reload: the store starts empty and fills in once
+// the initial fetch resolves. Without this gate, pages that render "nothing
+// configured yet" for an empty list (e.g. Schedule's "no stadium available")
+// would flash that message during the normal loading window, not just when
+// it's actually true.
+function AppRoutes() {
+  const { loading } = useStore();
+  if (loading) {
+    return <EmptyState glyph="⏳" title="Chargement…" />;
+  }
+  return (
+    <Routes>
+      <Route path="/" element={<Schedule />} />
+      <Route path="/mes-reservations" element={<MyBookings />} />
+      <Route path="/suggestions" element={<Suggestions />} />
+      <Route path="/proprietaire" element={<OwnerDashboard />} />
+      <Route path="/connexion" element={<Login />} />
+      <Route path="/compte" element={<Account />} />
+      <Route path="*" element={<Schedule />} />
+    </Routes>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -61,15 +84,7 @@ export default function App() {
         <ReminderScheduler />
         <AcceptedNotifier />
         <Layout>
-          <Routes>
-            <Route path="/" element={<Schedule />} />
-            <Route path="/mes-reservations" element={<MyBookings />} />
-            <Route path="/suggestions" element={<Suggestions />} />
-            <Route path="/proprietaire" element={<OwnerDashboard />} />
-            <Route path="/connexion" element={<Login />} />
-            <Route path="/compte" element={<Account />} />
-            <Route path="*" element={<Schedule />} />
-          </Routes>
+          <AppRoutes />
         </Layout>
       </ToastProvider>
     </BrowserRouter>

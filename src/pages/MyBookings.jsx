@@ -41,12 +41,12 @@ export default function MyBookings() {
     );
   }
 
-  const all = myBookings(session.phone);
+  const all = myBookings();
   const upcoming = all.filter((b) => !isPast(b.dayKey, b.slotStart) && (b.status === "pending" || b.status === "confirmed"));
   const history = all.filter((b) => !upcoming.includes(b));
 
-  function onCancel(b) {
-    cancelBooking(b.id);
+  async function onCancel(b) {
+    await cancelBooking(b.id);
     toast("Réservation annulée.");
   }
 

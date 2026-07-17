@@ -30,7 +30,7 @@ export default function Account() {
         {session.role === "owner" && (
           <Button variant="soft" block onClick={() => nav("/proprietaire")}>Espace gérant</Button>
         )}
-        <Button variant="ghost" block onClick={() => { logout(); nav("/"); }}>Se déconnecter</Button>
+        <Button variant="ghost" block onClick={async () => { await logout(); nav("/"); }}>Se déconnecter</Button>
       </Card>
     </div>
   );

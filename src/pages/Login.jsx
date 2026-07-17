@@ -15,9 +15,9 @@ export default function Login() {
   const loc = useLocation();
   const redirect = loc.state?.redirect || "/";
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
-    const res = signIn(phone, name);
+    const res = await signIn(phone, name);
     if (!res.ok) {
       toast(res.error, { err: true });
       return;

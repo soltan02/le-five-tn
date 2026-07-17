@@ -5,17 +5,26 @@
   "type": "module",
   "description": "Le Five — booking site for a single 5/7-a-side football facility (Tunisia).",
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --port 8090"
+    "preview": "vite preview --port 8090",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "seed": "node prisma/seed.mjs"
   },
   "dependencies": {
+    "@prisma/client": "^6.3.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0"
   },
   "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@vercel/node": "^5.8.25",
     "@vitejs/plugin-react": "^4.3.4",
+    "prisma": "^6.3.1",
+    "typescript": "^7.0.2",
     "vite": "^5.4.11"
   },
   "allowScripts": {
