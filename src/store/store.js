@@ -131,7 +131,7 @@ startPolling();
 // Auth
 // ---------------------------------------------------------------------------
 export async function signIn(phone, name) {
-  const result = await apiPost("login", { phone, name });
+  const result = await apiPost("auth", { action: "login", phone, name });
   if (!result.ok) return { ok: false, error: result.error };
   storeSession({ token: result.token, user: result.user });
   set({ session: result.user });
@@ -140,7 +140,7 @@ export async function signIn(phone, name) {
 }
 
 export async function logout() {
-  await apiPost("logout", {});
+  await apiPost("auth", { action: "logout" });
   clearStoredSession();
   set({ session: null });
 }
@@ -166,40 +166,40 @@ export function myBookings() {
 // ---------------------------------------------------------------------------
 export async function createBooking({ dayKey, pitchId, slotStart, slotEnd }) {
   if (!state.session) return { ok: false, error: "auth" };
-  const result = await apiPost("create-booking", { dayKey, pitchId, slotStart, slotEnd });
+  const result = await apiPost("bookings", { action: "create", dayKey, pitchId, slotStart, slotEnd });
   if (result.ok) await refreshSchedule();
   return result;
 }
 
 export async function ownerCreateBooking({ dayKey, pitchId, slotStart, slotEnd, name, phone }) {
-  const result = await apiPost("owner-create-booking", { dayKey, pitchId, slotStart, slotEnd, name, phone });
+  const result = await apiPost("bookings", { action: "owner-create", dayKey, pitchId, slotStart, slotEnd, name, phone });
   if (result.ok) await refreshSchedule();
   return result;
 }
 
 export async function confirmBooking(id) {
-  const result = await apiPost("manage-booking", { action: "confirm", bookingId: id });
+  const result = await apiPost("bookings", { action: "confirm", bookingId: id });
   await Promise.all([refreshSchedule(), refreshOwnerDashboard()]);
   return result;
 }
 export async function declineBooking(id) {
-  const result = await apiPost("manage-booking", { action: "decline", bookingId: id });
+  const result = await apiPost("bookings", { action: "decline", bookingId: id });
   await Promise.all([refreshSchedule(), refreshOwnerDashboard()]);
   return result;
 }
 export async function cancelBooking(id) {
-  const result = await apiPost("manage-booking", { action: "cancel", bookingId: id });
+  const result = await apiPost("bookings", { action: "cancel", bookingId: id });
   await Promise.all([refreshSchedule(), refreshPlayerState(), refreshOwnerDashboard()]);
   return result;
 }
 
 export async function setBookingOutcome(id, outcome) {
-  const result = await apiPost("set-booking-result", { bookingId: id, outcome });
+  const result = await apiPost("bookings", { action: "set-result", bookingId: id, outcome });
   await refreshOwnerDashboard();
   return result;
 }
 export async function setBookingPayment(id, amountPaid) {
-  const result = await apiPost("set-booking-result", { bookingId: id, amountPaid });
+  const result = await apiPost("bookings", { action: "set-result", bookingId: id, amountPaid });
   await refreshOwnerDashboard();
   return result;
 }
@@ -220,12 +220,12 @@ export function unpaidPlayedBookings() {
 // ---------------------------------------------------------------------------
 export async function addSuggestion(text) {
   if (!state.session || !text.trim()) return;
-  const result = await apiPost("add-suggestion", { text: text.trim() });
+  const result = await apiPost("suggestions", { action: "add", text: text.trim() });
   if (result.ok) await refreshPlayerState();
   return result;
 }
 export async function resolveSuggestion(id) {
-  const result = await apiPost("resolve-suggestion", { suggestionId: id });
+  const result = await apiPost("suggestions", { action: "resolve", suggestionId: id });
   if (result.ok) await refreshOwnerDashboard();
   return result;
 }
@@ -240,12 +240,12 @@ export function pitchById(id) {
   return state.pitches.find((p) => p.id === id);
 }
 export async function addPitch(data) {
-  const result = await apiPost("add-pitch", data);
+  const result = await apiPost("pitches", { action: "add", ...data });
   if (result.ok) await Promise.all([refreshSchedule(), refreshOwnerDashboard()]);
   return result.pitch;
 }
 export async function setPitchStatus(id, status) {
-  const result = await apiPost("set-pitch-status", { pitchId: id, status });
+  const result = await apiPost("pitches", { action: "set-status", pitchId: id, status });
   await Promise.all([refreshSchedule(), refreshOwnerDashboard()]);
   return result;
 }
@@ -306,12 +306,12 @@ export async function setFinancePeriod(period) {
   await refreshOwnerDashboard();
 }
 export async function addExpense(data) {
-  const result = await apiPost("add-expense", data);
+  const result = await apiPost("expenses", { action: "add", ...data });
   if (result.ok) await refreshOwnerDashboard();
   return result;
 }
 export async function deleteExpense(id) {
-  const result = await apiPost("delete-expense", { expenseId: id });
+  const result = await apiPost("expenses", { action: "delete", expenseId: id });
   if (result.ok) await refreshOwnerDashboard();
   return result;
 }
