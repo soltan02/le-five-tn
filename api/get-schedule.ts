@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { prisma } from "./_lib/db";
-import { getCaller } from "./_lib/session";
-import { upcomingDays } from "./_lib/dates";
-import { ok, methodNotAllowed } from "./_lib/respond";
+import { prisma } from "./_lib/db.js";
+import { getCaller } from "./_lib/session.js";
+import { upcomingDays } from "./_lib/dates.js";
+import { ok, methodNotAllowed } from "./_lib/respond.js";
 
 // Public (works logged-out) but role-aware: the owner sees full booker
 // name/phone plus internal reconciliation fields (outcome/amountPaid) for

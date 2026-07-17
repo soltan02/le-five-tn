@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { VercelRequest } from "@vercel/node";
-import { prisma } from "./db";
+import { prisma } from "./db.js";
 
 const SESSION_DAYS = 30;
 

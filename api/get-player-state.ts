@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { prisma } from "./_lib/db";
-import { getCaller } from "./_lib/session";
-import { ok, unauthorized, methodNotAllowed } from "./_lib/respond";
+import { prisma } from "./_lib/db.js";
+import { getCaller } from "./_lib/session.js";
+import { ok, unauthorized, methodNotAllowed } from "./_lib/respond.js";
 
 // The caller's own bookings (any status/date — their full personal history,
 // not windowed like get-schedule) plus their own suggestions.

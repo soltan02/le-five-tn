@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { prisma } from "./_lib/db";
-import { getCaller, Caller } from "./_lib/session";
-import { isPast, longDate } from "./_lib/dates";
-import { ok, badRequest, unauthorized, forbidden, methodNotAllowed } from "./_lib/respond";
+import { prisma } from "./_lib/db.js";
+import { getCaller, Caller } from "./_lib/session.js";
+import { isPast, longDate } from "./_lib/dates.js";
+import { ok, badRequest, unauthorized, forbidden, methodNotAllowed } from "./_lib/respond.js";
 import { FACILITY } from "../src/config/facility.js";
 
 // Bundled to stay under Vercel Hobby's 12-serverless-function cap. Every

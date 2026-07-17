@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { prisma } from "./_lib/db";
-import { getCaller } from "./_lib/session";
-import { ok, badRequest, unauthorized, forbidden, methodNotAllowed } from "./_lib/respond";
+import { prisma } from "./_lib/db.js";
+import { getCaller } from "./_lib/session.js";
+import { ok, badRequest, unauthorized, forbidden, methodNotAllowed } from "./_lib/respond.js";
 
 // Bundled to stay under Vercel Hobby's 12-serverless-function cap.
 // action: 'add' (any session) | 'resolve' (owner-only).

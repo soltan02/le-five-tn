@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { prisma } from "./_lib/db";
-import { normalizePhone, createSession, hashToken } from "./_lib/session";
-import { ok, badRequest, methodNotAllowed } from "./_lib/respond";
+import { prisma } from "./_lib/db.js";
+import { normalizePhone, createSession, hashToken } from "./_lib/session.js";
+import { ok, badRequest, methodNotAllowed } from "./_lib/respond.js";
 
 // Bundled to stay under Vercel Hobby's 12-serverless-function cap (see
 // api/bookings.ts for the same pattern). action: 'login' | 'logout'.

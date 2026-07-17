@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { prisma } from "./_lib/db";
-import { slotStartMs } from "./_lib/dates";
-import { ok, methodNotAllowed } from "./_lib/respond";
+import { prisma } from "./_lib/db.js";
+import { slotStartMs } from "./_lib/dates.js";
+import { ok, methodNotAllowed } from "./_lib/respond.js";
 import { FACILITY } from "../src/config/facility.js";
 
 const validPhone = (p: string) => !!p && p.replace(/\D/g, "").length >= 8;

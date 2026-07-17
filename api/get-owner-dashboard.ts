@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { prisma } from "./_lib/db";
-import { getCaller } from "./_lib/session";
-import { upcomingDays, slotsForDay, dateKey, isPast } from "./_lib/dates";
-import { ok, unauthorized, forbidden, methodNotAllowed } from "./_lib/respond";
+import { prisma } from "./_lib/db.js";
+import { getCaller } from "./_lib/session.js";
+import { upcomingDays, slotsForDay, dateKey, isPast } from "./_lib/dates.js";
+import { ok, unauthorized, forbidden, methodNotAllowed } from "./_lib/respond.js";
 
 type Period = "week7" | "month30" | "thisMonth" | "lastMonth";
 

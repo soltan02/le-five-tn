@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { prisma } from "./_lib/db";
-import { getCaller } from "./_lib/session";
-import { ok, unauthorized, forbidden, methodNotAllowed } from "./_lib/respond";
+import { prisma } from "./_lib/db.js";
+import { getCaller } from "./_lib/session.js";
+import { ok, unauthorized, forbidden, methodNotAllowed } from "./_lib/respond.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== "POST") return methodNotAllowed(res);
